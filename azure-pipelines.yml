@@ -1,0 +1,101 @@
+# Azure Pipeline for Todo App
+# This pipeline builds and deploys the Docker container
+
+trigger:
+  - main  # Triggers pipeline on pushes to main branch
+
+# Define variables that can be used across the pipeline
+variables:
+  # Container registry service connection name
+  dockerRegistryServiceConnection: 'Learntodoappregistry'
+  # Name of the container image
+  imageRepository: 'todo-app'
+  # Container registry name
+  containerRegistry: 'learntodoappregistry'
+  # Dockerfile path
+  dockerfilePath: '$(Build.SourcesDirectory)/Dockerfile'
+  # Tag to be used for the Docker image
+  tag: '$(Build.BuildId)'
+
+  # Agent VM image name
+  vmImageName: 'ubuntu-latest'
+
+stages:
+- stage: Build
+  displayName: Build and push stage
+  jobs:
+  - job: Build
+    displayName: Build
+    pool:
+      vmImage: $(vmImageName)
+    steps:
+    # Checkout the code
+    - task: Checkout@2
+      displayName: 'Checkout source code'
+
+    # Login to Docker registry
+    - task: Docker@2
+      displayName: 'Login to Docker registry'
+      inputs:
+        command: login
+        containerRegistry: $(dockerRegistryServiceConnection)
+
+    # Build and push Docker image
+    - task: Docker@2
+      displayName: 'Build and push Docker image'
+      inputs:
+        command: buildAndPush
+        repository: $(imageRepository)
+        dockerfile: $(dockerfilePath)
+        containerRegistry: $(dockerRegistryServiceConnection)
+        tags: |
+          $(tag)
+          latest
+
+    # Optional: Run security scan on the Docker image
+    - task: Docker@2
+      displayName: 'Scan Docker image'
+      inputs:
+        command: scan
+        containerRegistry: $(dockerRegistryServiceConnection)
+        repository: $(imageRepository)
+        tag: $(tag)
+
+- stage: Deploy
+  displayName: Deploy stage
+  dependsOn: Build
+  condition: succeeded()
+  jobs:
+  - job: Deploy
+    displayName: Deploy
+    pool:
+      vmImage: $(vmImageName)
+    steps:
+    # Deploy to Azure Container Instances (ACI)
+    - task: AzureCLI@2
+      displayName: 'Deploy to Azure Container Instances'
+      inputs:
+        azureSubscription: '1f51223f-bdf1-48c9-8a2b-1718c09e8b3b'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          # Deploy the container to ACI
+          az container create \
+            --resource-group Learning-devOps-sg \
+            --name todo-app \
+            --image learntodoappregistry.azurecr.io/$(imageRepository):$(tag) \
+            --dns-name-label todo-app \
+            --ports 80 \
+            --registry-login-server learntodoappregistry.azurecr.io \
+            --registry-username $(ACR_USERNAME) \
+            --registry-password $(ACR_PASSWORD)
+
+    # Optional: Run smoke tests after deployment
+    - task: PowerShell@2
+      displayName: 'Run smoke tests'
+      inputs:
+        targetType: 'inline'
+        script: |
+          # Add your smoke test commands here
+          # For example, curl the deployed application
+          curl http://todo-app.$(location).azurecontainer.io
