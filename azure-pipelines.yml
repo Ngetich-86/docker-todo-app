@@ -30,7 +30,7 @@ stages:
       vmImage: $(vmImageName)
     steps:
     # Checkout the code
-    - task: Checkout@2
+    - checkout: self
       displayName: 'Checkout source code'
 
     # Login to Docker registry
