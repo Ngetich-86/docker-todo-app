@@ -75,7 +75,7 @@ stages:
     - task: AzureCLI@2
       displayName: 'Deploy to Azure Container Instances'
       inputs:
-        azureSubscription: '1f51223f-bdf1-48c9-8a2b-1718c09e8b3b'
+        azureSubscription: 'Azure-Learning-devOps-sg'
         scriptType: 'bash'
         scriptLocation: 'inlineScript'
         inlineScript: |
